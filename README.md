@@ -185,8 +185,84 @@ choose "Export Packet Bytes":
 
 ![export packet data from Wireshark](assets/wireshark-export-bytes.png)
 
-the `assets/` folder already contains some PCAP traces and a few extracted RADIUS frames,
-so you can skip to Part 2.
+the `assets/` folder at the root of the project already contains some PCAP
+traces and a few extracted RADIUS frames, so you can skip to Part 2.
 
 ## Part 2: start implementing the parser
 
+Open the `assets/radius_localhost.pcapng` file and select the first packet. The raw data
+corresponding to this packet is in `assets/radius-access-request.bin` (each raw data file
+corresponds to the first appearance of that RADIUS packet type in the trace).
+
+To begin parsing, we need to load the data in a buffer and observe it. Tahnkfully, Rust
+provides a nice feature called `include_bytes`. This macro will, at compile time, embed
+the content of a file as a byte array in your code. In `src/lib.rs`:
+
+```rust
+#[cfg(test)]
+mod tests {
+    const access_request   : &[u8] = include_bytes!("../../assets/radius-access-request.bin");
+    const access_challenge : &[u8] = include_bytes!("../../assets/radius-access-challenge.bin");
+    const access_reject    : &[u8] = include_bytes!("../../assets/radius-access-reject.bin");
+    const access_accept    : &[u8] = include_bytes!("../../assets/radius-access-accept.bin");
+```
+
+Each of the `access_*` variables is a "byte slice", as indicated by the type `&[u8]`. This
+data type is fundamental in the way nom is built. It contains a pointer to the start of the
+data, and a length. nom will move from slices like this from one parser to the next, avoiding
+data copies in the process.
+
+We can now access those slices and observe their content. A great way to explore a byte slice
+is to reuse nom's hex viewer:
+
+```rust
+    // import the HexDisplay trait to activate the feature on slices
+    use nom::HexDisplay;
+
+    [...]
+
+    #[test]
+    fn print() {
+        println!("hexdump:\n{}", access_request.to_hex(16));
+        // adding a panic here to fail the test, otherwise the println output would be silent
+        panic!();
+    }
+```
+
+If you try to test the code, it should give you the following output:
+
+```
+$ cargo test
+    Finished dev [unoptimized + debuginfo] target(s) in 0.0 secs
+     Running target/debug/deps/radius-762b6b3206085f4b
+
+running 2 tests
+test tests::it_works ... ok
+test tests::print ... FAILED
+
+failures:
+
+---- tests::print stdout ----
+        hexdump:
+00000000        01 67 00 57 40 b6 64 db f5 d6 81 b2 ad bd 17 69         .g.W@�d��ց���.i
+00000010        51 51 18 c8 01 07 73 74 65 76 65 02 12 db c6 c4         QQ.�..steve..���
+00000020        b7 58 be 14 f0 05 b3 87 7c 9e 2f b6 01 04 06 c0         �X�.�.��|�/�...�
+00000030        a8 00 1c 05 06 00 00 00 7b 50 12 5f 0f 86 47 e8         �.......{P._.�G�
+00000040        c8 9b d8 81 36 42 68 fc d0 45 32 4f 0c 02 66 00         ț؁6Bh��E2O..f.
+00000050        0a 01 73 74 65 76 65                                    ..steve
+
+thread 'tests::print' panicked at 'explicit panic', src/lib.rs:15
+note: Run with `RUST_BACKTRACE=1` for a backtrace.
+
+
+failures:
+    tests::print
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured
+
+error: test failed, to rerun pass '--lib'
+```
+
+The hexadecimal viewer is useful to verify what nom returned is what you expected.
+
+### Let's write the first parser
