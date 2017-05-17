@@ -167,4 +167,26 @@ downloaded. It is not very useful for libraries, but for executables, you would
 usually commit this file, to fix the exact set of dependencies to use when
 building the project (you can update the dependencies list with `cargo update`).
 
+## Part 1: information gathering
+
+To write a new parser, we need mainly three things:
+
+- [specifications](https://tools.ietf.org/html/rfc2865)
+- samples. For a network protocol, we can get some from [the WireShark wiki](https://wiki.wireshark.org/SampleCaptures)
+- a way to compare our implementation with other ones. In our case, we can compare to the output of WireShark.
+you can download Wireshark [here](https://www.wireshark.org/)
+
+Since the data we want to parse is embeded in UCP packets inside a PCAP file,
+we need to extract the raw bytes of the RADIUS protocol (unless you want to
+also make a PCAP, IP and UDP parsers as well).
+
+Select a packet, and in the lower window, right click on "Radius Protocol" and
+choose "Export Packet Bytes":
+
+![export packet data from Wireshark](assets/wireshark-export-bytes.png)
+
+the `assets/` folder already contains some PCAP traces and a few extracted RADIUS frames,
+so you can skip to Part 2.
+
+## Part 2: start implementing the parser
 
