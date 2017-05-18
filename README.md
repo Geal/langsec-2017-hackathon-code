@@ -337,6 +337,10 @@ pub fn parse_radius_data(i:&[u8]) -> IResult<&[u8],RadiusData> {
 }
 ```
 
+It uses the big endian unsigned integer parsers, so add the following at the
+top of the file, after the `extern crate` declaration, to import those
+functions: `use nom::{be_u8, be_u16, IResult};`
+
 Notes:
 
 No allocation is required: the RadiusData structure is allocated on the stack,
@@ -347,4 +351,29 @@ allocated or copied: only a sub-slice is created (represented in memory as a
 pointer + length).
 
 ### Let's test the parser
+
+Now, we need to test that the parser works as expected. Let's add in a unit
+test to try and parse the access request:
+
+```
+use nom::{HexDisplay,IResult,Needed};
+use super::{parse_radius_data,RadiusData};
+#[test]
+fn basic_radius_data() {
+    println!("hexdump:\n{}", access_request.to_hex(16));
+
+    assert_eq!(
+        parse_radius_data(access_request),
+        IResult::Done(
+            &access_request[access_request.len()..],
+            RadiusData {
+                code: 1,
+                identifier: 103,
+                length: 87,
+                authenticator: &access_request[4..20],
+                attributes:    Some(&access_request[20..])
+            }
+        )
+    );
+}
 ```

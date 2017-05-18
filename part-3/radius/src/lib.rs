@@ -46,19 +46,36 @@ pub fn parse_radius_data(i:&[u8]) -> IResult<&[u8],RadiusData> {
 
 #[cfg(test)]
 mod tests {
-    use nom::HexDisplay;
+    use nom::{HexDisplay,IResult,Needed};
+    use super::{parse_radius_data,RadiusData};
+
     const access_request   : &[u8] = include_bytes!("../../../assets/radius-access-request.bin");
     const access_challenge : &[u8] = include_bytes!("../../../assets/radius-access-challenge.bin");
     const access_reject    : &[u8] = include_bytes!("../../../assets/radius-access-reject.bin");
     const access_accept    : &[u8] = include_bytes!("../../../assets/radius-access-accept.bin");
 
     #[test]
-    fn print() {
+    fn basic_radius_data() {
         println!("hexdump:\n{}", access_request.to_hex(16));
-        //panic!();
+
+        assert_eq!(
+            parse_radius_data(access_request),
+            IResult::Done(
+                &access_request[access_request.len()..],
+                RadiusData {
+                    code: 1,
+                    identifier: 103,
+                    length: 87,
+                    authenticator: &access_request[4..20],
+                    attributes:    Some(&access_request[20..])
+                }
+            )
+        );
     }
 
     #[test]
-    fn it_works() {
+    fn print() {
+        println!("hexdump:\n{}", access_request.to_hex(16));
+        //panic!();
     }
 }
