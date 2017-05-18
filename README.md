@@ -196,10 +196,10 @@ the content of a file as a byte array in your code. In `src/lib.rs`:
 ```rust
 #[cfg(test)]
 mod tests {
-    const access_request   : &[u8] = include_bytes!("../../assets/radius-access-request.bin");
-    const access_challenge : &[u8] = include_bytes!("../../assets/radius-access-challenge.bin");
-    const access_reject    : &[u8] = include_bytes!("../../assets/radius-access-reject.bin");
-    const access_accept    : &[u8] = include_bytes!("../../assets/radius-access-accept.bin");
+    const access_request   : &[u8] = include_bytes!("../../../assets/radius-access-request.bin");
+    const access_challenge : &[u8] = include_bytes!("../../../assets/radius-access-challenge.bin");
+    const access_reject    : &[u8] = include_bytes!("../../../assets/radius-access-reject.bin");
+    const access_accept    : &[u8] = include_bytes!("../../../assets/radius-access-accept.bin");
 ```
 
 Each of the `access_*` variables is a "byte slice", as indicated by the type `&[u8]`. This
