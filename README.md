@@ -377,3 +377,90 @@ fn basic_radius_data() {
     );
 }
 ```
+
+## Part 3: improve the parser
+
+Our parser only reads the very basic fields of RADIUS data, it does not support reading attributes for now.
+
+The specifications define the attributes as following:
+
+```
+   A summary of the Attribute format is shown below.  The fields are
+   transmitted from left to right.
+
+    0                   1                   2
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
+   |     Type      |    Length     |  Value ...
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
+```
+
+Attributes are simple TLVs, and a list of known types is also defined in the specifications.
+
+There are two different strategies here: we could only read the TLV structures and store them
+as opaque values, or we can parse them in depth. For this tutorial, we'll do implement both
+solutions, to improve our parser incrementally.
+
+Define the structure:
+
+```rust
+#[derive(Debug,PartialEq)]
+pub struct RadiusAttribute<'a> {
+    pub typ: u8,
+    pub len: u8,
+    pub val: &'a [u8],
+}
+```
+
+Write the parser for an attribute:
+
+```rust
+pub fn parse_radius_attribute(i:&[u8]) -> IResult<&[u8],RadiusAttribute> {
+    do_parse!(i,
+        t: be_u8 >>
+        l: be_u8 >>
+        v: take!(l-2) >>
+        (
+            RadiusAttribute {
+                typ: t,
+                len: l,
+                val: v,
+            }
+        )
+    )
+}
+```
+
+We now need to call our parser for attributes from the `RadiusData` parser.
+This is where nom is great: it allows to combine parsers very easily. We
+have a parser for one attribute. To read many attributes at once (reapplying
+the parser), we can use:
+
+```rust
+many1(i, parse_radius_attribute)
+```
+
+What we need here is a bit more complicated: we want to take some bytes
+and apply the parser only to these bytes. In the `parse_radius_data` function,
+the parsing of attributes becomes:
+
+```rust
+attr: cond!(len > 20,
+            flat_map!(take!(len - 20),complete!(many1!(parse_radius_attribute)))
+) >>
+```
+
+Then, the structure must be adapted, since instead of a slice, we now need to
+store a vector of `RadiusAttribute`:
+
+```rust
+pub struct RadiusData<'a> {
+    // [fields omitted]
+    pub attributes: Option<Vec<RadiusAttribute<'a>>>,
+}
+```
+
+Note: The expression `take!(l-2)` is dangerous, since if `l` is 0 or 1, this would
+result in a attempt to read a negative length. In debug mode, this attempt will
+be detected (and code will panic), but not in release mode. To prevent that, `l`
+must be tested.
