@@ -56,6 +56,8 @@ Yopu can install it directly like this:
 curl https://sh.rustup.rs -sSf | sh
 ```
 
+We will use the nightly version of Rust for this (at least from `1.18.0-nightly (036983201 2017-04-26)`).
+
 ## Creating a project
 
 Rust uses the `cargo` package manager to create projects, handle dependencies and
@@ -464,3 +466,193 @@ Note: The expression `take!(l-2)` is dangerous, since if `l` is 0 or 1, this wou
 result in a attempt to read a negative length. In debug mode, this attempt will
 be detected (and code will panic), but not in release mode. To prevent that, `l`
 must be tested.
+
+## Fuzzing
+
+Even with a memory safe language like Rust, and a parser combinators library like
+nom, parsing bugs can still appear. We will employ [cargo-fuzz](https://github.com/rust-fuzz/cargo-fuzz),
+a wrapper around [libFuzzer](http://llvm.org/docs/LibFuzzer.html).
+
+Install `cargo-fuzz` like this:
+
+```
+cargo install cargo-fuzz
+```
+
+Then set up fuzzing in the project:
+
+```
+cd part-4/radius && cargo fuzz init
+```
+
+This will create the `fuzz/` directory in your project, with the following content:
+
+```
+fuzz/
+├── Cargo.toml
+└── fuzzers
+    └── fuzzer_script_1.rs
+```
+
+Let's use our parser in the generated fuzzer script:
+
+```rust
+#![no_main]
+#[macro_use] extern crate libfuzzer_sys;
+extern crate radius;
+
+use radius::parse_radius_data;
+
+fuzz_target!(|data: &[u8]| {
+    let result = parse_radius_data(data);
+});
+```
+
+`cargo-fuzz` will repeatedly call our parser with byte slices, trying to crash it.
+Let's run it:
+
+```
+    Finished dev [unoptimized + debuginfo] target(s) in 13.58 secs
+     Running `fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1 -artifact_prefix=/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/artifacts/fuzzer_script_1/ /Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/corpus/fuzzer_script
+_1`
+INFO: Seed: 1461186425
+INFO: Loaded 0 modules (0 guards):
+Loading corpus dir: /Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/corpus/fuzzer_script_1
+INFO: -max_len is not provided, using 64
+INFO: A corpus is not provided, starting from an empty corpus
+#0      READ units: 1
+#1      INITED cov: 118 corp: 1/1b exec/s: 0 rss: 14Mb
+#2      NEW    cov: 127 corp: 2/3b exec/s: 0 rss: 14Mb L: 2 MS: 1 InsertByte-
+#8      NEW    cov: 138 corp: 3/8b exec/s: 0 rss: 14Mb L: 5 MS: 2 CopyPart-CopyPart-
+#10     NEW    cov: 174 corp: 4/72b exec/s: 0 rss: 14Mb L: 64 MS: 4 CopyPart-CopyPart-InsertByte-CrossOver-
+#14     NEW    cov: 190 corp: 5/129b exec/s: 0 rss: 14Mb L: 57 MS: 3 InsertByte-ChangeByte-InsertRepeatedBytes-
+#1125   NEW    cov: 320 corp: 6/193b exec/s: 0 rss: 14Mb L: 64 MS: 4 EraseBytes-ChangeByte-CopyPart-CrossOver-
+#1139   NEW    cov: 321 corp: 7/250b exec/s: 0 rss: 14Mb L: 57 MS: 3 ChangeBit-ChangeBit-CrossOver-
+thread '<unnamed>' panicked at 'attempt to subtract with overflow', src/lib.rs:60
+note: Run with `RUST_BACKTRACE=1` for a backtrace.
+==7187== ERROR: libFuzzer: deadly signal
+    #0 0x106eb8500 in __sanitizer_print_stack_trace (/Users/geal/.rustup/toolchains/nightly-x86_64-apple-darwin/lib/rustlib/x86_64-apple-darwin/lib/libclang_rt.asan_osx_dynamic.dylib:x86_64+0x62500)
+    #1 0x105b5d62b in fuzzer::Fuzzer::CrashCallback() (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10002d62b)
+    #2 0x105b5d5dd in fuzzer::Fuzzer::StaticCrashSignalCallback() (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10002d5dd)
+    #3 0x105ba6ec7 in fuzzer::CrashHandler(int, __siginfo*, void*) (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x100076ec7)
+    #4 0x7fffb5e94b39 in _sigtramp (/usr/lib/system/libsystem_platform.dylib:x86_64+0x2b39)
+    #5 0x100000000  (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0xfa4d0000)
+    #6 0x7fffb5d1941f in abort (/usr/lib/system/libsystem_c.dylib:x86_64+0x5f41f)
+    #7 0x105bce1c8 in __rust_start_panic (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10009e1c8)
+    #8 0x105bcccbc in rust_panic (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10009ccbc)
+    #9 0x105bccc73 in std::panicking::rust_panic_with_hook::h2bd2f0b446f0face (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10009cc73)
+    #10 0x105bcca64 in std::panicking::begin_panic::h1732f61ecaaa434e (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10009ca64)
+    #11 0x105bcc9d2 in std::panicking::begin_panic_fmt::h2948dd4668f99175 (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10009c9d2)
+    #12 0x105bcc937 in rust_begin_unwind (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10009c937)
+    #13 0x105bce450 in core::panicking::panic_fmt::hb2e726f3b579b19d (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10009e450)
+    #14 0x105bce354 in core::panicking::panic::hafbe89720e5223c3 (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10009e354)
+    #15 0x105bc6944 in radius::parse_radius_attribute::h47bd8e6f1abe8fcb (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x100096944)
+    #16 0x105bbfead in radius::parse_radius_data::hf031975c47562504 (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10008fead)
+    #17 0x105b32c15 in rust_fuzzer_test_input (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x100002c15)
+    #18 0x105b36911 in libfuzzer_sys::test_input_wrap::_$u7b$$u7b$closure$u7d$$u7d$::h99d797663140f733 (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x100006911)
+    #19 0x105b3493e in std::panicking::try::do_call::hbda0a362ff3256fe (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10000493e)
+    #20 0x105bce1bb in __rust_maybe_catch_panic (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10009e1bb)
+    #21 0x105b33fa4  (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x100003fa4)
+    #22 0x105b33a2c in std::panic::catch_unwind::h04ce022c4e0303bf (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x100003a2c)
+    #23 0x105b3647c in LLVMFuzzerTestOneInput (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10000647c)
+    #24 0x105b60aff in fuzzer::Fuzzer::ExecuteCallback(unsigned char const*, unsigned long) (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x100030aff)
+    #25 0x105b60efd in fuzzer::Fuzzer::RunOne(unsigned char const*, unsigned long) (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x100030efd)
+    #26 0x105b6422d in fuzzer::Fuzzer::MutateAndTestOne() (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10003422d)
+    #27 0x105b64c73 in fuzzer::Fuzzer::Loop() (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x100034c73)
+    #28 0x105b3fa3c in fuzzer::FuzzerDriver(int*, char***, int (*)(unsigned char const*, unsigned long)) (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10000fa3c)
+    #29 0x105b6fd6f in main (/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/target/x86_64-apple-darwin/debug/fuzzer_script_1:x86_64+0x10003fd6f)
+    #30 0x7fffb5c85234 in start (/usr/lib/system/libdyld.dylib:x86_64+0x5234)
+
+NOTE: libFuzzer has rudimentary signal handlers.
+      Combine libFuzzer with AddressSanitizer or similar for better crash reports.
+SUMMARY: libFuzzer: deadly signal
+MS: 4 ChangeBit-ChangeBit-CrossOver-CrossOver-; base unit: 1dfe937ff03d3933e93b246530d7a72f5bef2d54
+0x21,0xa,0x0,0x21,0xa,0x29,0x0,0x0,0x0,0x6d,0x6d,0x6d,0x6d,0xed,0x6d,0x6d,0x6d,0x6d,0xa,0x6d,0xa,0xa,0x21,0x21,0xa,0x21,0xa,0x6d,0x6d,0x0,0x0,0x0,0xa,0x21,0xa,0x0,0x6d,0x6d,0x6d,0x6d,0x6d,0x6d,0x6d,0xa,0x21,0xa,0x21,0xa,0x6d,0x6d,0x6d,0x7d,0xa,
+!\x0a\x00!\x0a)\x00\x00\x00mmmm\xedmmmm\x0am\x0a\x0a!!\x0a!\x0amm\x00\x00\x00\x0a!\x0a\x00mmmmmmm\x0a!\x0a!\x0ammm}\x0a
+artifact_prefix='/Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/artifacts/fuzzer_script_1/'; Test unit written to /Users/geal/presentations/langsec-2017-hackathon-code/part-5/radius/fuzz/artifacts/fuzzer_script_1/crash-d575696eb7fb470793d82e5b8f2e3a867
+baf8c0d
+Base64: IQoAIQopAAAAbW1tbe1tbW1tCm0KCiEhCiEKbW0AAAAKIQoAbW1tbW1tbQohCiEKbW1tfQo=
+```
+
+As expected, `cargo-fuzz` has found something! It saved a dump of the data used to crash
+the parser in `fuzz/artifacts/fizzer_script_1/crash-<SOME BASE64>`.
+
+We can now reuse this as test case in our project, ìmporting it like the other assets:
+
+```rust
+const fuzzer_sample    : &[u8] = include_bytes!("../fuzz/artifacts/fuzzer_script_1/crash-d575696eb7fb470793d82e5b8f2e3a867baf8c0d");
+```
+
+Let's add a test case with this sample:
+
+```rust
+#[test]
+fn fuzzer_test() {
+    let res = parse_radius_data(fuzzer_sample);
+}
+```
+
+Let's run the tests, with a new environment variable, `RUST_BACKTRACE`, to display the
+stack trace after a failure in a test.
+
+```
+$ RUST_BACKTRACE=1 cargo test
+    Finished dev [unoptimized + debuginfo] target(s) in 0.0 secs
+     Running target/debug/deps/radius-89e2b4cf971b0c5e
+
+running 2 tests
+test tests::basic_radius_data ... ok
+test tests::fuzzer_test ... FAILED
+
+failures:
+
+---- tests::fuzzer_test stdout ----
+        thread 'tests::fuzzer_test' panicked at 'attempt to subtract with overflow', src/lib.rs:60
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+stack backtrace:
+   0: std::sys::imp::backtrace::tracing::imp::unwind_backtrace
+   1: std::panicking::default_hook::{{closure}}
+   2: std::panicking::default_hook
+   3: std::panicking::rust_panic_with_hook
+   4: std::panicking::begin_panic
+   5: std::panicking::begin_panic_fmt
+   6: rust_begin_unwind
+   7: core::panicking::panic_fmt
+   8: core::panicking::panic
+   9: radius::parse_radius_attribute
+  10: radius::parse_radius_data
+  11: radius::tests::fuzzer_test
+  12: <F as test::FnBox<T>>::call_box
+  13: __rust_maybe_catch_panic
+
+
+failures:
+    tests::fuzzer_test
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured
+
+error: test failed, to rerun pass '--lib'
+```
+
+Note that this is not a crash, but a panic: Rust detected an overflowing operation,
+and decided to stop the program. Rust does other kinds of verifications, like
+bounds checking, but those can be deactivated in release mode.
+
+Our fuzzer detected an overflow at this line:
+
+```rust
+    l: be_u8 >>
+    v: take!(l-2) >>
+```
+
+We parsed a length, and we try to substract `2` from it. The overflow happens when
+the length is `0` or `1`. We can fix this by using the [`verify!`]`(https://docs.rs/nom/3.0.0/nom/macro.verify.html)
+combinator, to validate a value after parsing it:
+
+```rust
+    l: verify!(be_u8, |val| val >= 2) >>
+```
+
+With this, the overflow is fixed. What happens is that verify will return an error
+on the invalid length value, so the attribute parser will return an error too, and
+the list of attributes will stop there.

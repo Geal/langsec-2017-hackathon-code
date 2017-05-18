@@ -56,7 +56,7 @@ pub fn parse_radius_data(i:&[u8]) -> IResult<&[u8],RadiusData> {
 pub fn parse_radius_attribute(i:&[u8]) -> IResult<&[u8],RadiusAttribute> {
     do_parse!(i,
         t: be_u8 >>
-        l: be_u8 >>
+        l: verify!(be_u8, |val| val >= 2) >>
         v: take!(l-2) >>
         (
             RadiusAttribute {
@@ -77,6 +77,7 @@ mod tests {
     const access_challenge : &[u8] = include_bytes!("../../../assets/radius-access-challenge.bin");
     const access_reject    : &[u8] = include_bytes!("../../../assets/radius-access-reject.bin");
     const access_accept    : &[u8] = include_bytes!("../../../assets/radius-access-accept.bin");
+    const fuzzer_sample    : &[u8] = include_bytes!("../fuzz/artifacts/fuzzer_script_1/crash-d575696eb7fb470793d82e5b8f2e3a867baf8c0d");
 
     #[test]
     fn basic_radius_data() {
@@ -128,9 +129,11 @@ mod tests {
         );
     }
 
+
     #[test]
-    fn print() {
-        println!("hexdump:\n{}", access_request.to_hex(16));
-        //panic!();
+    fn fuzzer_test() {
+        let res = parse_radius_data(fuzzer_sample);
+        println!("res: {:?}", res);
+        panic!();
     }
 }
