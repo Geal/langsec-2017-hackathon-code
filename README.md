@@ -261,3 +261,90 @@ error: test failed, to rerun pass '--lib'
 The hexadecimal viewer is useful to verify what nom returned is what you expected.
 
 ### Let's write the first parser
+
+We'll start by defining the enum for RADIUS codes:
+
+```rust
+#[derive(Debug,PartialEq)]
+#[repr(u8)]
+pub enum RadiusCode {
+    AccessRequest = 1,
+    AccessAccept = 2,
+    AccessReject = 3,
+    AccountingRequest = 4,
+    AccountingResponse = 5,
+    AccessChallenge = 11,
+    StatusServer = 12,
+    StatusClient = 13,
+    Reserved = 255,
+}
+```
+
+The `derive` attributes are there to add features to the enum:
+- `Debug` to easily print the value
+- `PartialEq` to compare it to another
+
+The `#repr(u8)]` attribute indicates that the value in memory will be an
+unsigned byte.
+
+Now, we define the structure to hold RADIUS data:
+
+```rust
+#[derive(Debug,PartialEq)]
+pub struct RadiusData<'a> {
+    pub code: u8,
+    pub identifier: u8,
+    pub length: u16,
+    pub authenticator: &'a [u8], // 16 bytes
+    pub attributes: Option<&'a[u8]>,
+}
+```
+
+Note the following points:
+
+- The <'a> notation is the declaration of a lifetime. It is used by Rust to
+ensure that pointers on data (authenticator and attributes) will never be
+freed before a RadiusData object containing them. This is the Rust way of
+safely managing memory without a garbage collector.
+- The `Option` type is an enum that represents either `Some(value)` (there is
+a value) or `None` (there is no value).
+
+The goal of the nom parser will be to generate this structure from raw data.
+We use nom to describe how to read each field. Since the definition of radius
+data is very simple, we'll only have to use basic functions to read the
+fields as big-endian integers, and take a number of bytes for the other fields.
+
+The parser will then build and return a structure `RadiusData`.
+
+```rust
+pub fn parse_radius_data(i:&[u8]) -> IResult<&[u8],RadiusData> {
+    do_parse!(i,
+        c:    be_u8 >>
+        id:   be_u8 >>
+        len:  be_u16 >>
+        auth: take!(16) >>
+        attr: cond!(len > 20, take!(len - 20)) >>
+        (
+            RadiusData {
+                code: c,
+                identifier: id,
+                length: len,
+                authenticator: auth,
+                attributes: attr,
+            }
+        )
+    )
+}
+```
+
+Notes:
+
+No allocation is required: the RadiusData structure is allocated on the stack,
+and ownership will be transferred to the caller function. Rust takes care of
+the memory.
+Parser is zero-copy: when taking data (for ex. in auth: take!(16), nothing is
+allocated or copied: only a sub-slice is created (represented in memory as a
+pointer + length).
+
+### Let's test the parser
+```
