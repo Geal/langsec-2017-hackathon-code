@@ -2,12 +2,7 @@
 
 Throughout this exercise, we will guide you in developing a nom parser for the RADIUS protocol.
 
-The different steps of the exercise are in separate branches, named "part-0", "part-1", etc.
-To jump directly to one of the steps, execute this command:
-
-```
-git checkout part-1
-```
+The different steps of the exercise are in separate folders, named "part-0", "part-1", etc.
 
 ## The RADIUS protocol
 
