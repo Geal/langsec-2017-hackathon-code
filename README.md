@@ -191,7 +191,7 @@ Open the `assets/radius_localhost.pcapng` file and select the first packet. The 
 corresponding to this packet is in `assets/radius-access-request.bin` (each raw data file
 corresponds to the first appearance of that RADIUS packet type in the trace).
 
-To begin parsing, we need to load the data in a buffer and observe it. Tahnkfully, Rust
+To begin parsing, we need to load the data in a buffer and observe it. Thankfully, Rust
 provides a nice feature called `include_bytes`. This macro will, at compile time, embed
 the content of a file as a byte array in your code. In `src/lib.rs`:
 
