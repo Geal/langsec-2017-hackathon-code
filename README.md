@@ -508,6 +508,11 @@ fuzz_target!(|data: &[u8]| {
 });
 ```
 
+To run the fuzzer, call `cargo-fuzz` with the fuzzer script name:
+```
+cargo-fuzz run fuzzer_script_1
+```
+
 `cargo-fuzz` will repeatedly call our parser with byte slices, trying to crash it.
 Let's run it:
 
